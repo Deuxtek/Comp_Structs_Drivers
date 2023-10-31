@@ -51,7 +51,7 @@ uint8_t ring_buffer_put(ring_buffer_t *ring_buffer, uint8_t data) //save data in
  */
 uint8_t ring_buffer_get(ring_buffer_t *ring_buffer, uint8_t *data)
 {
-	if((ring_buffer -> is_full != 0) || (ring_buffer -> tail != ring_buffer -> head)) //it work whether the buffer is empty  or the tail is different from the head.
+	if(ring_buffer_empty( ring_buffer) == 0) //it works whether the buffer is empty  or the tail is different from the head.
 	{
 		*data = ring_buffer -> buffer[ring_buffer -> tail];
 		ring_buffer -> tail = (ring_buffer -> tail + 1) % ring_buffer -> capacity;//actualize the index(position) of the tail
