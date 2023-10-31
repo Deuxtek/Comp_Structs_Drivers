@@ -21,7 +21,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "ring_buffer.h"
 
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -43,7 +45,12 @@
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+uint8_t rx_buffer[16];
+ring_buffer_t ring_buffer_uart_rx;
 
+uint8_t rx_data;
+uint16_t empty;
+uint16_t full;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -57,6 +64,17 @@ static void MX_USART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+int _write(int file, char *ptr, int len)
+{
+	HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, HAL_MAX_DELAY); //el asterisco del uint8 es para evitar warnings por diferencia de tipos de dato
+	return len;
+}
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	//rx_data = 50;
+	full = ring_buffer_put(&ring_buffer_uart_rx, rx_data);
+	HAL_UART_Receive_IT(&huart2, &rx_data, 1);
+}
 /* USER CODE END 0 */
 
 /**
@@ -89,6 +107,16 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+  ring_buffer_init(&ring_buffer_uart_rx, rx_buffer, 16);//initialize the ring buffer.
+
+  HAL_UART_Receive_IT(&huart2, &rx_data, 1);//when data is received it goes to the ring buffer.
+  if (ring_buffer_empty(&ring_buffer_uart_rx) == 1){
+  printf("Buffer vacío \r\n");
+  }
+  else{
+	  printf("Buffer full \r\n");
+  }
+
 
   /* USER CODE END 2 */
 
@@ -96,6 +124,35 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
+	 uint16_t size = ring_buffer_size(&ring_buffer_uart_rx);
+
+	 if (size != 0){
+		 uint8_t rx_array[size + 1];
+		 for (uint16_t idx = 0; idx < size; idx++ ){
+			 //uint8_t rx_val = 50;
+			 ring_buffer_get(&ring_buffer_uart_rx, &rx_array[idx]);
+			 //printf("Val: %c\r\n", rx_val);
+			 if (ring_buffer_empty(&ring_buffer_uart_rx) == 1){
+						 printf("Buffer vacío: después\r\n");
+			}
+			else{
+			printf("Buffer full después\r\n");
+		 }
+
+		}
+		 rx_array[size] = 0;
+		 printf("Rec:  %s\r\n", rx_array);
+		 if (ring_buffer_empty(&ring_buffer_uart_rx) == 1){
+				printf("Buffer vacío: empty\r\n");
+			}
+			 else{
+			printf("Buffer vacío: full\r\n");
+			}
+
+	 }
+
+	 HAL_Delay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
