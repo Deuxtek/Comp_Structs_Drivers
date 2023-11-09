@@ -21,7 +21,15 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "ring_buffer.h" //Imports the ring buffer library.
 
+#include "keyboard.h" //Imports the keyboard library.
+
+#include "stdio.h"
+
+#include "ssd1306.h" //Imports the screen controller library.
+
+#include "ssd1306_fonts.h" //Imports the fonds size library for the screen.
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -40,22 +48,44 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+I2C_HandleTypeDef hi2c1;
+
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+uint8_t rx_buffer[5];//Ring buffer of 5 positions due to the parameters given in the exercise.
+ring_buffer_t ring_buffer_password; //variable that indicates the data in the ring buffer.
 
+uint8_t rx_data;
+
+uint16_t key_event = 0xFF; //The default value for the action of pressing a key.
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+int _write(int file, char *ptr, int len)
+{
+	HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, HAL_MAX_DELAY); //el asterisco del uint8 es para evitar warnings por diferencia de tipos de dato
+	return len;
+}
+/**
+ * @brief This function of callback allows to read the keyboard multiple times,
+ * since the values to read are being controlled via GPIO.
+ */
+void              HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+
+	key_event = GPIO_Pin ;
+}
 
 /* USER CODE END 0 */
 
@@ -72,7 +102,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -88,19 +118,213 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+  ring_buffer_init(&ring_buffer_password, rx_buffer, 5);//Initialize the ring buffer.
+
+  HAL_UART_Receive_IT(&huart2, &rx_data, 1);//When data is received it goes to the ring buffer.
+
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
+  keyboard_init();//Initialize the keyboard with default values.
+  /**
+   * @brief This chunk of code initialize the screen and shows something define below.
+   * Similar chunks of code will appear across the the rest of the program and will show different things.
+   */
+  ssd1306_Init(); //initialize the screen with default values.
+  ssd1306_Fill(Magenta);//this color was defined in the configs of the screen, however it does not show since the screen its monochromatic.
+  ssd1306_SetCursor(20, 25);//sets the position of the message that will appear on the screen.
+  ssd1306_WriteString("Bienvenido.", Font_7x10, Black);//writes a specified message on the screen, with a given fond and  color.
+
+  /**
+   * @brief This chunk of code does the load bar animation.
+   */
+  ssd1306_DrawRectangle(8, 38, 113, 47, Black);//Draws a rectangle that contains the fill rectangle.
+  for(int s = 10;s <= 110; s+=20){ //reiterates the values of s until it reaches 110
+	  //updating every time the size of the fill rectangle and waiting for 300 ms.
+		ssd1306_FillRectangle(10, 40, s, 45, Black);
+		 ssd1306_UpdateScreen();
+		 HAL_Delay(300);
+ 	}
+
+
+  //shows a different screen.
+    ssd1306_Init();
+  	ssd1306_Fill(Magenta);
+  	ssd1306_SetCursor(0, 5);
+  	ssd1306_WriteString("Digite su contrasena.", Font_6x8, Black);
+  	ssd1306_SetCursor(0, 45);
+  	ssd1306_WriteString(" A o B para reiniciar.", Font_6x8, Black);
+  	ssd1306_SetCursor(0, 55);
+  	ssd1306_WriteString(" * para confirmar.", Font_6x8, Black);
+  	ssd1306_UpdateScreen();
+  	 printf("Digite su contraseña. \r\n");
+
+  int pass = 0;//Variable that saves the password.
+  char *show; //This variable allows to store characters in it. They will be shown on the screen.
+  int space = 40; //variable to give space between number being shown on the screen. The initial value is an indentation.
   while (1)
   {
+
+	 if (key_event != 0xFF) { // Checks if there is a event from the EXTI callback.
+		  uint16_t key_pressed = keypad_handler(key_event);
+		  ring_buffer_put(&ring_buffer_password, key_pressed);//Saves in the buffer the data collected form the keyboard.
+		  printf("Key pressed: %x\r\n", key_pressed);// Prints the key pressed.
+		  /**
+		   * @brief This chunk of code compares the values in the key_pressed variable
+		   * and saves a character according to that in the show variable.
+		   */
+		  if(key_pressed == 0x01){
+			  show = "1";
+		  }
+		  if(key_pressed == 0x02){
+			  show = "2";
+		  }
+		  if(key_pressed == 0x03){
+			  show = "3";
+		  }
+		  if(key_pressed == 0x04){
+			  show = "4";
+		  }
+		  if(key_pressed == 0x05){
+			  show = "5";
+		  }
+		  if(key_pressed == 0x06){
+			  show = "6";
+		  }
+		  if(key_pressed == 0x07){
+			  show = "7";
+		  }
+		  if(key_pressed == 0x08){
+			  show = "8";
+		  }
+		  if(key_pressed == 0x09){
+			  show = "9";
+		  }
+		  if(key_pressed == 0x0E){
+			  show = "*";
+		  }
+		  if(key_pressed == 0x0A){
+			  show = "A";
+		  }
+		  if(key_pressed == 0x0B){
+			  show = "B";
+		  }
+		  if(key_pressed == 0x0C){
+			  show = "C";
+		  }
+		  if(key_pressed == 0x0D){
+			  show = "D";
+		  }
+		  /**
+		   * @brief This chunk writes the number on the screen and after that replaces them with a *.
+		   * The numbers are separated on the screen by adding 10 to the position in the x axis.
+		   */
+		  ssd1306_SetCursor(space, 26);
+		  ssd1306_WriteString(show, Font_11x18, Black);
+		  ssd1306_UpdateScreen();
+		  HAL_Delay(400);
+		  ssd1306_SetCursor(space, 26);
+		  ssd1306_WriteString("*", Font_11x18, Black);
+		  ssd1306_UpdateScreen();
+		  space = space + 10;
+
+		  /**
+		   * @brief This chunk compares if is pressed A or B to reset the data an clean the buffer.
+		   * In addition to that it shows a load screen (again xd), and specifies to insert new values via keyboard.
+		   */
+		  if (key_pressed == 0x0B || key_pressed == 0x0A){
+		 		 printf("Borrando datos... \r\n");
+		 		 printf("Ingrese la contraseña de nuevo. \r\n");
+
+				pass=0;
+				 ring_buffer_reset(&ring_buffer_password);
+				 space = 40;
+
+		 		 ssd1306_Init();
+		 		 ssd1306_Fill(Magenta);
+		 		 ssd1306_SetCursor(5, 25);
+		 		 ssd1306_WriteString("Borrando datos...", Font_7x10, Black);
+		 		 ssd1306_DrawRectangle(8, 38, 113, 47, Black);
+		 		 for(int s = 10;s <= 110; s+=20){
+		 			ssd1306_FillRectangle(10, 40, s, 45, Black);
+					 ssd1306_UpdateScreen();
+					 HAL_Delay(300);
+		 		 }
+
+		 		 ssd1306_Init();
+				 ssd1306_Fill(Magenta);
+				 ssd1306_SetCursor(0, 0);
+				 ssd1306_WriteString("Ingrese los datos", Font_6x8, Black);
+				 ssd1306_SetCursor(0, 10);
+				 ssd1306_WriteString("nuevamente, por favor.", Font_6x8, Black);
+				 ssd1306_UpdateScreen();
+				 HAL_Delay(2000);
+		 	 }
+
+
+		  HAL_Delay(600); //this delay was implemented to avoid the bouncing effect of the key when pressed.
+		  key_event = 0xFF; // clean the event
+	 }
+
+
+	 /**
+	  * @brief This chunk compares the size of the buffer. when it is equal to 5 it reads the buffer and
+	  * assign the value to the variable pass (excludes the value of the last position since it should be *) .
+	  * after that it compares with a given number if its equal and the last position is a *, it shows pass.
+	  * Any other case a fail will be shown.
+	  */
+	 if (ring_buffer_size(&ring_buffer_password) == 5){
+		 for (int i = 0; i <= 3; i++){
+				 pass = pass *10 + (rx_buffer[i]-0);
+			 }
+		  printf("Your password is:  %u\r\n", pass);
+		  if ((rx_buffer[4] == 0x0E) && (pass == 1999)){
+			  printf("Pass. \r\n");
+			  ssd1306_Init();
+			  ssd1306_Fill(Magenta);
+			  ssd1306_SetCursor(35, 25);
+			  ssd1306_DrawCircle( 67, 35, 28,Black);//draws multiple circles.
+			  ssd1306_DrawCircle( 67, 35, 29,Black);
+			  ssd1306_DrawCircle( 67, 35, 30,Black);
+			  ssd1306_DrawCircle( 67, 35, 31,Black);
+			  ssd1306_DrawCircle( 67, 35, 32,Black);
+			  ssd1306_WriteString("PASS.", Font_16x26, Black);
+			  ssd1306_UpdateScreen();
+			  HAL_Delay(2000);
+		  }
+		  else{
+			  printf("Fail. \r\n");
+			  ssd1306_Init();
+			  ssd1306_Fill(Magenta);
+			  ssd1306_SetCursor(35, 25);
+			  ssd1306_WriteString("FAIL.", Font_16x26, Black);
+			  ssd1306_UpdateScreen();
+			  HAL_Delay(2000);
+		  }
+
+		  //resets all the values to the default parameters and shows the initial screen.
+		  ring_buffer_reset(&ring_buffer_password);
+		  pass = 0;
+		  space = 40;
+		  ssd1306_Init();
+		ssd1306_Fill(Magenta);
+		ssd1306_SetCursor(0, 5);
+		ssd1306_WriteString(" Digite su contrasena.", Font_6x8, Black);
+		ssd1306_SetCursor(0, 45);
+		ssd1306_WriteString(" A o B para reiniciar.", Font_6x8, Black);
+		ssd1306_SetCursor(0, 55);
+		ssd1306_WriteString(" * para confirmar.", Font_6x8, Black);
+		ssd1306_UpdateScreen();
+		 printf("Digite su contraseña. \r\n");
+	 }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
   /* USER CODE END 3 */
+}
 }
 
 /**
@@ -153,6 +377,54 @@ void SystemClock_Config(void)
 }
 
 /**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.Timing = 0x10909CEC;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -168,7 +440,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
+  huart2.Init.BaudRate = 9600;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -205,7 +477,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, LD2_Pin|ROW_1_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, ROW_2_Pin|ROW_4_Pin|ROW_3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -213,12 +488,44 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LD2_Pin */
-  GPIO_InitStruct.Pin = LD2_Pin;
+  /*Configure GPIO pins : LD2_Pin ROW_1_Pin */
+  GPIO_InitStruct.Pin = LD2_Pin|ROW_1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : COLUMN_1_Pin */
+  GPIO_InitStruct.Pin = COLUMN_1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(COLUMN_1_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : COLUMN_4_Pin */
+  GPIO_InitStruct.Pin = COLUMN_4_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(COLUMN_4_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : COLUMN_2_Pin COLUMN_3_Pin */
+  GPIO_InitStruct.Pin = COLUMN_2_Pin|COLUMN_3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : ROW_2_Pin ROW_4_Pin ROW_3_Pin */
+  GPIO_InitStruct.Pin = ROW_2_Pin|ROW_4_Pin|ROW_3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
