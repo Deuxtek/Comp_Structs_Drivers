@@ -21,15 +21,15 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "ring_buffer.h"
+#include "ring_buffer.h" //Imports the ring buffer library.
 
-#include "keyboard.h"
+#include "keyboard.h" //Imports the keyboard library.
 
 #include "stdio.h"
 
-#include "ssd1306.h"
+#include "ssd1306.h" //Imports the screen controller library.
 
-#include "ssd1306_fonts.h"
+#include "ssd1306_fonts.h" //Imports the fonds size library for the screen.
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -53,12 +53,12 @@ I2C_HandleTypeDef hi2c1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-uint8_t rx_buffer[5];
-ring_buffer_t ring_buffer_password;
+uint8_t rx_buffer[5];//Ring buffer of 5 positions due to the parameters given in the exercise.
+ring_buffer_t ring_buffer_password; //variable that indicates the data in the ring buffer.
 
 uint8_t rx_data;
 
-uint16_t key_event = 0xFF;
+uint16_t key_event = 0xFF; //The default value for the action of pressing a key.
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -78,7 +78,10 @@ int _write(int file, char *ptr, int len)
 	HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, HAL_MAX_DELAY); //el asterisco del uint8 es para evitar warnings por diferencia de tipos de dato
 	return len;
 }
-
+/**
+ * @brief This function of callback allows to read the keyboard multiple times,
+ * since the values to read are being controlled via GPIO.
+ */
 void              HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 	key_event = GPIO_Pin ;
@@ -117,26 +120,37 @@ int main(void)
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-  ring_buffer_init(&ring_buffer_password, rx_buffer, 5);//initialize the ring buffer.
+  ring_buffer_init(&ring_buffer_password, rx_buffer, 5);//Initialize the ring buffer.
 
-  HAL_UART_Receive_IT(&huart2, &rx_data, 1);//when data is received it goes to the ring buffer.
+  HAL_UART_Receive_IT(&huart2, &rx_data, 1);//When data is received it goes to the ring buffer.
 
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
-  keyboard_init();
+  keyboard_init();//Initialize the keyboard with default values.
+  /**
+   * @brief This chunk of code initialize the screen and shows something define below.
+   * Similar chunks of code will appear across the the rest of the program and will show different things.
+   */
+  ssd1306_Init(); //initialize the screen with default values.
+  ssd1306_Fill(Magenta);//this color was defined in the configs of the screen, however it does not show since the screen its monochromatic.
+  ssd1306_SetCursor(20, 25);//sets the position of the message that will appear on the screen.
+  ssd1306_WriteString("Bienvenido.", Font_7x10, Black);//writes a specified message on the screen, with a given fond and  color.
 
-  ssd1306_Init();
-  ssd1306_Fill(Magenta);
-  ssd1306_SetCursor(20, 25);
-  ssd1306_WriteString("Bienvenido.", Font_7x10, Black);
-  ssd1306_DrawRectangle(8, 38, 113, 47, Black);
-  for(int s = 10;s <= 110; s+=20){
+  /**
+   * @brief This chunk of code does the load bar animation.
+   */
+  ssd1306_DrawRectangle(8, 38, 113, 47, Black);//Draws a rectangle that contains the fill rectangle.
+  for(int s = 10;s <= 110; s+=20){ //reiterates the values of s until it reaches 110
+	  //updating every time the size of the fill rectangle and waiting for 300 ms.
 		ssd1306_FillRectangle(10, 40, s, 45, Black);
 		 ssd1306_UpdateScreen();
 		 HAL_Delay(300);
  	}
+
+
+  //shows a different screen.
     ssd1306_Init();
   	ssd1306_Fill(Magenta);
   	ssd1306_SetCursor(0, 5);
@@ -148,17 +162,20 @@ int main(void)
   	ssd1306_UpdateScreen();
   	 printf("Digite su contraseña. \r\n");
 
-  int pass = 0;
-  char *show;
-  int space = 40;
+  int pass = 0;//Variable that saves the password.
+  char *show; //This variable allows to store characters in it. They will be shown on the screen.
+  int space = 40; //variable to give space between number being shown on the screen. The initial value is an indentation.
   while (1)
   {
 
-	 if (key_event != 0xFF) { // check if there is a event from the EXTi callback
+	 if (key_event != 0xFF) { // Checks if there is a event from the EXTI callback.
 		  uint16_t key_pressed = keypad_handler(key_event);
-		  ring_buffer_put(&ring_buffer_password, key_pressed);
-		  printf("Key pressed: %x\r\n", key_pressed);// print the key pressed
-
+		  ring_buffer_put(&ring_buffer_password, key_pressed);//Saves in the buffer the data collected form the keyboard.
+		  printf("Key pressed: %x\r\n", key_pressed);// Prints the key pressed.
+		  /**
+		   * @brief This chunk of code compares the values in the key_pressed variable
+		   * and saves a character according to that in the show variable.
+		   */
 		  if(key_pressed == 0x01){
 			  show = "1";
 		  }
@@ -201,7 +218,10 @@ int main(void)
 		  if(key_pressed == 0x0D){
 			  show = "D";
 		  }
-
+		  /**
+		   * @brief This chunk writes the number on the screen and after that replaces them with a *.
+		   * The numbers are separated on the screen by adding 10 to the position in the x axis.
+		   */
 		  ssd1306_SetCursor(space, 26);
 		  ssd1306_WriteString(show, Font_11x18, Black);
 		  ssd1306_UpdateScreen();
@@ -211,6 +231,10 @@ int main(void)
 		  ssd1306_UpdateScreen();
 		  space = space + 10;
 
+		  /**
+		   * @brief This chunk compares if is pressed A or B to reset the data an clean the buffer.
+		   * In addition to that it shows a load screen (again xd), and specifies to insert new values via keyboard.
+		   */
 		  if (key_pressed == 0x0B || key_pressed == 0x0A){
 		 		 printf("Borrando datos... \r\n");
 		 		 printf("Ingrese la contraseña de nuevo. \r\n");
@@ -241,12 +265,17 @@ int main(void)
 		 	 }
 
 
-		  HAL_Delay(600);
+		  HAL_Delay(600); //this delay was implemented to avoid the bouncing effect of the key when pressed.
 		  key_event = 0xFF; // clean the event
 	 }
 
 
-
+	 /**
+	  * @brief This chunk compares the size of the buffer. when it is equal to 5 it reads the buffer and
+	  * assign the value to the variable pass (excludes the value of the last position since it should be *) .
+	  * after that it compares with a given number if its equal and the last position is a *, it shows pass.
+	  * Any other case a fail will be shown.
+	  */
 	 if (ring_buffer_size(&ring_buffer_password) == 5){
 		 for (int i = 0; i <= 3; i++){
 				 pass = pass *10 + (rx_buffer[i]-0);
@@ -257,7 +286,7 @@ int main(void)
 			  ssd1306_Init();
 			  ssd1306_Fill(Magenta);
 			  ssd1306_SetCursor(35, 25);
-			  ssd1306_DrawCircle( 67, 35, 28,Black);
+			  ssd1306_DrawCircle( 67, 35, 28,Black);//draws multiple circles.
 			  ssd1306_DrawCircle( 67, 35, 29,Black);
 			  ssd1306_DrawCircle( 67, 35, 30,Black);
 			  ssd1306_DrawCircle( 67, 35, 31,Black);
@@ -275,6 +304,8 @@ int main(void)
 			  ssd1306_UpdateScreen();
 			  HAL_Delay(2000);
 		  }
+
+		  //resets all the values to the default parameters and shows the initial screen.
 		  ring_buffer_reset(&ring_buffer_password);
 		  pass = 0;
 		  space = 40;
